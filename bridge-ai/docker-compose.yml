@@ -1,0 +1,16 @@
+# Optional: runs n8n locally with the right timezone. The backend and frontend run natively (see README).
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=Europe/London
+      - TZ=Europe/London
+      - N8N_SECURE_COOKIE=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets n8n reach the backend on your machine (Linux)
+    volumes:
+      - n8n_data:/home/node/.n8n
+volumes:
+  n8n_data:

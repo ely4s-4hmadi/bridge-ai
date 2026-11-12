@@ -1,0 +1,208 @@
+{
+  "name": "Bridge AI — Financial shock detection",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bridge-financial-events",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e491005d-ec00-4f4d-9af6-7e13e7fc07ce",
+      "name": "Financial event webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "38d35750-0e89-4fa3-941e-da86bbb4c54f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bridge AI — validate and normalise an incoming financial event.\n// BACKEND_URL is not a secret. Change it to where your FastAPI backend runs:\n//   n8n in Docker + backend on your laptop -> http://host.docker.internal:8000\n//   n8n installed with npm on the same machine -> http://localhost:8000\nconst BACKEND_URL = 'http://host.docker.internal:8000';\n\nconst ALLOWED = {\n  shift_cancelled: ['shift_id'],\n  bill_updated: ['bill_id', 'new_amount_minor'],\n  income_delayed: ['new_date'],\n  new_bill: ['amount_minor', 'due_date'],\n  shift_added: ['amount_minor', 'due_date'],\n};\nconst MINOR_FIELDS = ['amount_minor', 'old_amount_minor', 'new_amount_minor'];\n\nconst raw = $input.first().json.body ?? {};\nconst errors = [];\nfor (const f of ['event_id', 'user_id', 'event_type', 'source']) {\n  if (typeof raw[f] !== 'string' || raw[f].trim() === '') errors.push(`missing ${f}`);\n}\nif (raw.event_type && !ALLOWED[raw.event_type]) errors.push(`unsupported event_type ${raw.event_type}`);\nfor (const f of ALLOWED[raw.event_type] ?? []) if (raw[f] === undefined || raw[f] === null) errors.push(`missing ${f}`);\nfor (const f of MINOR_FIELDS) {\n  if (raw[f] !== undefined && !(Number.isInteger(raw[f]) && raw[f] >= 0)) errors.push(`${f} must be a non-negative integer (pence)`);\n}\nif ((raw.currency ?? 'GBP') !== 'GBP') errors.push('only GBP is supported');\n\n// Transform to Bridge's internal format: only known fields are forwarded.\nconst KEEP = ['event_id','user_id','event_type','currency','source','event_date','shift_id','bill_id',\n  'amount_minor','old_amount_minor','new_amount_minor','due_date','new_date','label'];\nconst event = Object.fromEntries(KEEP.filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]]));\nevent.currency = event.currency ?? 'GBP';\n\nreturn [{ json: { valid: errors.length === 0, errors, event, backend_url: BACKEND_URL,\n  received_at: new Date().toISOString() } }];\n"
+      },
+      "id": "d83b6817-54dd-4098-aac9-016c7ee46a1e",
+      "name": "Validate & transform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dc2d7376-4ac9-43be-bbdc-662c61f61b06",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "23517b9c-3373-465f-8150-235915066eb6",
+      "name": "Event valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.backend_url }}/api/integrations/events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Bridge-Via",
+              "value": "n8n"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.event) }}"
+      },
+      "id": "62bc0184-0b85-491c-94fd-544dcd7def74",
+      "name": "Send event to Bridge backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ workflow: 'bridge_financial_events', n8n_execution_id: $execution.id, bridge_status_code: $json.statusCode, bridge_result: $json.body }) }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      },
+      "id": "e4e67674-86bc-475d-bcc0-869052fa9a63",
+      "name": "Respond with Bridge result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ workflow: 'bridge_financial_events', status: 'rejected', errors: $json.errors }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "5c6338d7-59b1-4a9e-9665-da4b56e06fd3",
+      "name": "Reject malformed event",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Financial event webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & transform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & transform": {
+      "main": [
+        [
+          {
+            "node": "Event valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event valid?": {
+      "main": [
+        [
+          {
+            "node": "Send event to Bridge backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject malformed event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send event to Bridge backend": {
+      "main": [
+        [
+          {
+            "node": "Respond with Bridge result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

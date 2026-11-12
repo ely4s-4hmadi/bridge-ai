@@ -1,0 +1,40 @@
+{
+  "note": "Curated list of official / established UK free advice services. Eligibility for any support varies with individual circumstances. Last reviewed by the team: November 2026.",
+  "resources": [
+    {
+      "id": "moneyhelper",
+      "name": "MoneyHelper",
+      "url": "https://www.moneyhelper.org.uk/",
+      "what": "Free, impartial money and debt guidance backed by the UK government.",
+      "suitable_for_international_students": true
+    },
+    {
+      "id": "citizens_advice",
+      "name": "Citizens Advice",
+      "url": "https://www.citizensadvice.org.uk/",
+      "what": "Free, confidential advice on money, housing, work and bills.",
+      "suitable_for_international_students": true
+    },
+    {
+      "id": "stepchange",
+      "name": "StepChange Debt Charity",
+      "url": "https://www.stepchange.org/",
+      "what": "Free debt advice from a UK charity.",
+      "suitable_for_international_students": true
+    },
+    {
+      "id": "ukcisa",
+      "name": "UKCISA (UK Council for International Student Affairs)",
+      "url": "https://www.ukcisa.org.uk/",
+      "what": "Information for international students, including money and work rules. Check what applies to your visa before applying for any public support.",
+      "suitable_for_international_students": true
+    },
+    {
+      "id": "university_support",
+      "name": "Your university's student support / money advice team",
+      "url": null,
+      "what": "Most UK universities have a student money adviser and some run hardship funds. Search your own university's website — Bridge does not list a specific scheme because availability and eligibility differ.",
+      "suitable_for_international_students": true
+    }
+  ]
+}
